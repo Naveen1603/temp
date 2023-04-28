@@ -1,42 +1,31 @@
-import win32com.client
+import pyodbc
 
-# Create a DAO DBEngine object
-db_engine = win32com.client.Dispatch("DAO.DBEngine.120")
+# Open a connection to the Access database
+conn_str = (
+    r"Driver={Microsoft Access Driver (*.mdb, *.accdb)};"
+    r"Dbq=path/to/your/access/database.accdb;"
+    r"Uid=your_username;"
+    r"Pwd=your_password;"
+    r"ExtendedAnsiSQL=1;"
+    r"ShowSysObjects=1;"
+)
+conn = pyodbc.connect(conn_str)
 
-# Open the Access database file
-db_path = "path/to/your/access/database.accdb"
-database = db_engine.OpenDatabase(db_path)
+# Get a cursor for executing SQL commands
+cursor = conn.cursor()
 
-# Get the TableDefs collection
-table_defs = database.TableDefs
+# Get information about sequences in the database
+cursor.execute("SELECT Name FROM MSysObjects WHERE Type=6;")
+sequences = cursor.fetchall()
+for sequence in sequences:
+    print("Sequence:", sequence[0])
 
-# Loop through each table in the TableDefs collection
-for table_def in table_defs:
-    # Print the name of the table
-    print(table_def.Name)
+# Get information about relationships in the database
+cursor.execute("SELECT * FROM MSysRelationships;")
+relationships = cursor.fetchall()
+for relationship in relationships:
+    print("Relationship:", relationship[0])
 
-    # Get the Fields collection for the current table
-    fields = table_def.Fields
-
-    # Loop through each field in the Fields collection
-    for field in fields:
-        # Print the name and data type of the field
-        print("\t", field.Name, field.Type)
-
-    # Get the Constraints collection for the current table
-    constraints = table_def.Indexes
-
-    # Loop through each constraint in the Constraints collection
-    for constraint in constraints:
-        # Check if the constraint is a primary key constraint
-        if constraint.Primary:
-            # Print the name of the primary key field
-            print("\tPrimary Key:", constraint.Fields(0).Name)
-
-        # Check if the constraint is a foreign key constraint
-        if constraint.Foreign:
-            # Print the name of the foreign key field and the referenced table and field
-            print("\tForeign Key:", constraint.Fields(0).Name, "->", constraint.ForeignTable, ".", constraint.ForeignFields(0).Name)
-
-# Close the database
-database.Close()
+# Close the connection
+cursor.close()
+conn.close()
