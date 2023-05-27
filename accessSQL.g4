@@ -1,51 +1,142 @@
 grammar AccessSQL;
 
-query: select_stmt;
+parse: statement+;
 
-select_stmt: SELECT select_clause from_clause where_clause?;
+statement: selectStatement | insertStatement | updateStatement | deleteStatement | createTableStatement;
 
-select_clause: SELECT (ALL | DISTINCT)? select_list;
+selectStatement: SELECT columnList FROM tableSource (JOIN joinClause)* (WHERE expression)? (ORDER BY ordering)?;
 
-select_list: (select_item (',' select_item)*)?;
+insertStatement: INSERT INTO tableName (columnList)? VALUES valueList;
 
-select_item: (column_name | expression) (AS? column_alias)?;
+updateStatement: UPDATE tableName SET assignmentList (WHERE expression)?;
 
-column_name: (table_name '.')? column;
+deleteStatement: DELETE FROM tableName (WHERE expression)?;
 
-column_alias: ID;
+createTableStatement: CREATE TABLE tableName '(' columnDefinitionList ')';
 
-from_clause: FROM table_reference_list;
+columnDefinitionList: columnDefinition (',' columnDefinition)*;
 
-table_reference_list: table_reference (',' table_reference)*;
+columnDefinition: columnName dataType (PRIMARY KEY)?;
 
-table_reference: table_name (AS? table_alias)?;
+dataType: INT | LONG | FLOAT | DOUBLE | DECIMAL | VARCHAR | TEXT | DATETIME;
 
-table_name: ID;
+ordering: column (ASC | DESC)?;
 
-table_alias: ID;
+valueList: value (',' value)*;
 
-where_clause: WHERE expression;
+value: STRING | NUMBER | BOOL | NULL;
 
-expression: logical_expr;
+assignmentList: assignment (',' assignment)*;
 
-logical_expr: comparison_expr (('AND' | 'OR') comparison_expr)*;
+assignment: column '=' expression;
 
-iif_func: 'IIF' '(' expression ',' expression ',' expression ')';
+tableSource: tableName (',' tableName)*;
 
-comparison_expr: operand operator operand;
+joinClause: JOIN tableName ON expression;
 
-operand: literal | column_name | '(' expression ')';
+columnList: column (',' column)*;
 
-operator: '=' | '<>' | '<' | '>' | '<=' | '>=' | 'LIKE';
+column: (tableName '.')? columnName;
 
-literal: (INT | FLOAT | STRING);
+expression: '(' expression ')'
+    | expression (AND | OR) expression
+    | expression (EQ | NEQ | LT | LTE | GT | GTE) expression
+    | NOT expression
+    | functionCall
+    | column
+    | value;
 
-INT: [0-9]+;
+functionCall: functionName '(' argumentList? ')';
 
-FLOAT: [0-9]+ '.' [0-9]*;
+argumentList: expression (',' expression)*;
 
-STRING: '\'' ~('\'' | '\r' | '\n')* '\'';
+functionName: AVG | COUNT | MAX | MIN | SUM | UCASE | LCASE | MID | LEN | ROUND | NOW | FORMAT | IIF;
 
-ID: [a-zA-Z_][a-zA-Z_0-9]*;
+tableName: ID;
+
+columnName: ID;
+
+fragment A: [Aa];
+fragment B: [Bb];
+fragment C: [Cc];
+fragment D: [Dd];
+fragment E: [Ee];
+fragment F: [Ff];
+fragment G: [Gg];
+fragment H: [Hh];
+fragment I: [Ii];
+fragment J: [Jj];
+fragment K: [Kk];
+fragment L: [Ll];
+fragment M: [Mm];
+fragment N: [Nn];
+fragment O: [Oo];
+fragment P: [Pp];
+fragment Q: [Qq];
+fragment R: [Rr];
+fragment S: [Ss];
+fragment T: [Tt];
+fragment U: [Uu];
+fragment V: [Vv];
+fragment W: [Ww];
+fragment X: [Xx];
+fragment Y: [Yy];
+fragment Z: [Zz];
+
+AVG: A V G;
+COUNT: C O U N T;
+MAX: M A X;
+MIN: M I N;
+SUM: S U M;
+UCASE: U C A S E;
+LCASE: L C A S E;
+MID: M I D;
+LEN: L E N;
+ROUND: R O U N D;
+NOW: N O W;
+FORMAT: F O R M A T;
+IIF: I I F;
+
+SELECT: S E L E C T;
+FROM: F R O M;
+WHERE: W H E R E;
+ORDER: O R D E R;
+BY: B Y;
+ASC: A S C;
+DESC: D E S C;
+INSERT: I N S E R T;
+INTO: I N T O;
+VALUES: V A L U E S;
+UPDATE: U P D A T E;
+SET: S E T;
+DELETE: D E L E T E;
+CREATE: C R E A T E;
+TABLE: T A B L E;
+PRIMARY: P R I M A R Y;
+KEY: K E Y;
+INT: I N T;
+LONG: L O N G;
+FLOAT: F L O A T;
+DOUBLE: D O U B L E;
+DECIMAL: D E C I M A L;
+VARCHAR: V A R C H A R;
+TEXT: T E X T;
+DATETIME: D A T E T I M E;
+AND: A N D;
+OR: O R;
+EQ: '=';
+NEQ: '<>';
+LT: '<';
+LTE: '<=';
+GT: '>';
+GTE: '>=';
+NOT: N O T;
+NULL: N U L L;
+
+STRING: '\'' (~['\''])* '\'';
+NUMBER: ('+' | '-')? [0-9]+ ('.' [0-9]+)?;
+BOOL: 'TRUE' | 'FALSE';
+
+ID: [a-zA-Z_] [a-zA-Z0-9_]*;
 
 WS: [ \t\r\n]+ -> skip;
