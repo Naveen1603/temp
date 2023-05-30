@@ -1,31 +1,43 @@
-import pyodbc
+private String handleFormatExpression(String expression, String formatString) {
+    // Handle different scenarios of Access FORMAT function
+    if (formatString.equalsIgnoreCase("'General Number'")) {
+        return "TO_CHAR(" + expression + ", 'FM999,999,999,999,990.99')";
+    } else if (formatString.equalsIgnoreCase("'Fixed'")) {
+        return "TO_CHAR(" + expression + ", 'FM999,999,999,999,990')";
+    } else if (formatString.equalsIgnoreCase("'Standard'")) {
+        return "TO_CHAR(" + expression + ", 'FM999,999,999,999,990.00')";
+    } else if (formatString.equalsIgnoreCase("'Percent'")) {
+        return "TO_CHAR(" + expression + " * 100, 'FM999,999,999,999,990.00%')";
+    } else if (formatString.equalsIgnoreCase("'Scientific'")) {
+        return "TO_CHAR(" + expression + ", 'FM9.999999999990E+099')";
+    } else if (formatString.equalsIgnoreCase("'Currency'")) {
+        return "TO_CHAR(" + expression + "::money, 'FM$999,999,999,999,990.00')";
+    } else if (formatString.equalsIgnoreCase("'Short Date'")) {
+        return "TO_CHAR(" + expression + ", 'MM/DD/YYYY')";
+    } else if (formatString.equalsIgnoreCase("'Medium Date'")) {
+        return "TO_CHAR(" + expression + ", 'Mon DD, YYYY')";
+    } else if (formatString.equalsIgnoreCase("'Long Date'")) {
+        return "TO_CHAR(" + expression + ", 'Month DD, YYYY')";
+    } else if (formatString.equalsIgnoreCase("'Short Time'")) {
+        return "TO_CHAR(" + expression + ", 'HH:MI AM')";
+    } else if (formatString.equalsIgnoreCase("'Medium Time'")) {
+        return "TO_CHAR(" + expression + ", 'HH:MI:SS AM')";
+    } else if (formatString.equalsIgnoreCase("'Long Time'")) {
+        return "TO_CHAR(" + expression + ", 'HH:MI:SS AM')";
+    } else {
+        // Custom format string handling
+        String customFormat = formatString.replace("#", "9");
+        return "TO_CHAR(" + expression + ", '" + customFormat + "')";
+    }
+}
 
-# Open a connection to the Access database
-conn_str = (
-    r"Driver={Microsoft Access Driver (*.mdb, *.accdb)};"
-    r"Dbq=path/to/your/access/database.accdb;"
-    r"Uid=your_username;"
-    r"Pwd=your_password;"
-    r"ExtendedAnsiSQL=1;"
-    r"ShowSysObjects=1;"
-)
-conn = pyodbc.connect(conn_str)
-
-# Get a cursor for executing SQL commands
-cursor = conn.cursor()
-
-# Get information about sequences in the database
-cursor.execute("SELECT Name FROM MSysObjects WHERE Type=6;")
-sequences = cursor.fetchall()
-for sequence in sequences:
-    print("Sequence:", sequence[0])
-
-# Get information about relationships in the database
-cursor.execute("SELECT * FROM MSysRelationships;")
-relationships = cursor.fetchall()
-for relationship in relationships:
-    print("Relationship:", relationship[0])
-
-# Close the connection
-cursor.close()
-conn.close()
+    @Override
+    public String visitFunctionCall(AccessSQLParser.FunctionCallContext ctx) {
+        String functionName = ctx.functionName.getText();
+        if (functionName.equalsIgnoreCase("FORMAT")) {
+            String expression = visit(ctx.expression(0));
+            String formatString = visit(ctx.expression(1));
+            return handleFormatExpression(expression, formatString);
+        }
+        return super.visitFunctionCall(ctx);
+    }
