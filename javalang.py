@@ -1,61 +1,121 @@
-import javalang
-from javalang.tree import CompilationUnit, ClassDeclaration, MethodDeclaration, BlockStatement, Statement, SwitchStatement, SwitchCase
+from javalang import tree
+from javalang.tree import MethodInvocation, MethodDeclaration, Statement, BlockStatement, IfStatement, SwitchStatement, \
+    SwitchStatementCase, ClassDeclaration, ClassCreator, ClassDeclarationBody, ClassBodyDeclaration, \
+    MethodDeclaration, \
+    FormalParameter, TypeDeclaration, BasicType, Literal, ReturnStatement, StatementExpression, \
+    MemberReference, \
+    ReferenceType, ClassCreator, VariableDeclaration, VariableDeclarator, ExpressionStatement, \
+    BasicTypeArgument, \
+    TypeArgument, ClassReference, TypeArgument
+from javalang.tree import TypeArguments, Type
 
-# Create a CompilationUnit
-cu = CompilationUnit()
-
-# Create a ClassDeclaration for the Factory class
-factory_class = ClassDeclaration(
-    modifiers={'public'},
-    name='Factory',
-    members=[],
-)
-
-# Create a MethodDeclaration for the createProduct method
-create_method = MethodDeclaration(
-    modifiers={'public', 'static'},
-    return_type='Product',
-    name='createProduct',
-    parameters=[('String', 'methodName')],
-    body=BlockStatement(statements=[
-        Statement(
-            SwitchStatement(
-                selector='methodName',
-                cases=[
-                    SwitchCase(
-                        value='\"ProductA\"',
-                        statements=[
-                            Statement('return new ConcreteProductA();')
-                        ]
-                    ),
-                    SwitchCase(
-                        value='\"ProductB\"',
-                        statements=[
-                            Statement('return new ConcreteProductB();')
-                        ]
-                    ),
-                    # Add more cases as needed
-                    SwitchCase(
-                        value='default',
-                        statements=[
-                            Statement('return null;')
-                        ]
+# Generate the method implementation for each case
+def generate_case_methods(case_values):
+    methods = []
+    for value in case_values:
+        method = MethodDeclaration(
+            modifiers=set(['public', 'static']),
+            name=value,
+            parameters=[FormalParameter(type_=tree.Type(name='String'), name='methodName')],
+            return_type=tree.Type(name='void'),
+            body=BlockStatement(
+                statements=[
+                    StatementExpression(
+                        MethodInvocation(
+                            member=MemberReference(
+                                prefix=tree.This(),
+                                member=value
+                            ),
+                            arguments=[
+                                tree.This(),
+                                Literal(value=value, type_='String')
+                            ]
+                        )
                     )
                 ]
             )
         )
-    ])
-)
+        methods.append(method)
+    return methods
 
-# Add the createProduct method to the Factory class
-factory_class.members.append(create_method)
+# Generate the factory class
+def generate_factory_class(class_name, case_values):
+    methods = generate_case_methods(case_values)
+    factory_class = ClassDeclaration(
+        modifiers=set(['public', 'class']),
+        name=class_name,
+        extends=tree.Node(),
+        implements=None,
+        body=ClassDeclarationBody(
+            declarations=[
+                ClassBodyDeclaration(
+                    declaration=MethodDeclaration(
+                        modifiers=set(['public', 'static']),
+                        name='createInstance',
+                        parameters=[FormalParameter(type_=tree.Type(name='String'), name='methodName')],
+                        return_type=tree.Type(name='void'),
+                        body=BlockStatement(
+                            statements=[
+                                SwitchStatement(
+                                    selector=tree.VariableDeclarator(
+                                        type_=tree.Type(name='String'),
+                                        name='methodName'
+                                    ),
+                                    cases=[
+                                        SwitchStatementCase(
+                                            labels=[Literal(value=value, type_='String')],
+                                            statements=[
+                                                StatementExpression(
+                                                    MethodInvocation(
+                                                        member=MemberReference(
+                                                            prefix=tree.This(),
+                                                            member=value
+                                                        ),
+                                                        arguments=[
+                                                            tree.This(),
+                                                            Literal(value=value, type_='String')
+                                                        ]
+                                                    )
+                                                )
+                                            ]
+                                        )
+                                        for value in case_values
+                                    ]
+                                )
+                            ]
+                        )
+                    )
+                )
+            ] + methods
+        )
+    )
 
-# Add the Factory class to the CompilationUnit
-cu.types.append(factory_class)
+    return factory_class
 
-# Convert the AST to Java code
-java_code = cu.encode()
+# Generate the Java source code
+def generate_java_code(factory_class):
+    type_declaration = TypeDeclaration(
+        type_declaration=ClassDeclaration(
+            modifiers=set(['public']),
+            name='MyFactory',
+            extends=tree.Node(),
+            implements=None,
+            body=ClassDeclarationBody(
+                declarations=[
+                    ClassBodyDeclaration(
+                        declaration=factory_class
+                    )
+                ]
+            )
+        )
+    )
+    compilation_unit = tree.CompilationUnit(
+        type_declarations=[type_declaration]
+    )
+    return compilation_unit
 
-# Write the Java code to a file
-with open('Factory.java', 'w') as java_file:
-    java_file.write(java_code)
+# Example usage
+case_values = ['method1', 'method2', 'method3']
+factory_class = generate_factory_class('MyFactory', case_values)
+java_code = generate_java_code(factory_class)
+print(java_code)
