@@ -1,0 +1,57 @@
+<div id="subscriptionContainer">
+    <button id="subscribeButton" onclick="subscribeUser()">Subscribe</button>
+</div>
+<div id="resultMessage" style="display: none;"></div>
+
+<script type="text/javascript">
+    function subscribeUser() {
+        var clientContext = new SP.ClientContext.get_current();
+        var list = clientContext.get_web().get_lists().getByTitle('Subscribers');
+        var camlQuery = new SP.CamlQuery();
+        var items = list.getItems(camlQuery);
+
+        clientContext.load(items);
+        clientContext.executeQueryAsync(
+            function() {
+                var enumerator = items.getEnumerator();
+                var item = enumerator.moveNext() ? enumerator.get_current() : null;
+
+                if (item) {
+                    var userList = item.get_item('UserList') || '';
+                    var users = userList ? userList.split(';') : [];
+
+                    if (users.length >= 4) {
+                        showResultMessage('Subscription limit reached.', true);
+                        document.getElementById('subscribeButton').disabled = true;
+                    } else {
+                        var user = prompt('Enter your name:');
+                        if (user) {
+                            users.push(user);
+                            item.set_item('UserList', users.join(';'));
+                            item.update();
+
+                            clientContext.executeQueryAsync(
+                                function() {
+                                    showResultMessage('Subscription successful!', false);
+                                },
+                                function(sender, args) {
+                                    showResultMessage('Subscription failed: ' + args.get_message(), true);
+                                }
+                            );
+                        }
+                    }
+                }
+            },
+            function(sender, args) {
+                showResultMessage('Error: ' + args.get_message(), true);
+            }
+        );
+    }
+
+    function showResultMessage(message, isError) {
+        var resultMessage = document.getElementById('resultMessage');
+        resultMessage.style.display = 'block';
+        resultMessage.style.color = isError ? 'red' : 'green';
+        resultMessage.innerText = message;
+    }
+</script>
