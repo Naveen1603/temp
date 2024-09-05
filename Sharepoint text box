@@ -62,3 +62,49 @@ $(document).ready(function () {
 });
 
 </script>
+
+
+
+
+
+
+
+
+----------------------
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/sp/v2/column-formatting.schema.json",
+  "elmType": "div",
+  "children": [
+    {
+      "elmType": "input",
+      "attributes": {
+        "type": "text",
+        "placeholder": "Enter your comment",
+        "class": "ms-TextField-field",
+        "id": "commentText"
+      },
+      "style": {
+        "margin-right": "10px"
+      }
+    },
+    {
+      "elmType": "button",
+      "txtContent": "Add Comment",
+      "customRowAction": {
+        "action": "executeFlow",
+        "actionParams": "{\"id\":\"<PowerAutomateFlowID>\",\"Comment\":\"='@currentField.commentText'\",\"MainItemID\":\"[$ID]\",\"MainItemUrl\":\"[$FileRef]\",\"LoggedInUser\":\"[$Author.email]\"}"
+      },
+      "attributes": {
+        "class": "ms-Button"
+      },
+      "style": {
+        "background-color": "#0078d4",
+        "color": "white",
+        "border": "none",
+        "padding": "5px 10px",
+        "cursor": "pointer"
+      }
+    }
+  ]
+}
+
