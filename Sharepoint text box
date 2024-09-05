@@ -108,3 +108,21 @@ $(document).ready(function () {
   ]
 }
 
+---------------------------
+
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/sp/v2/column-formatting.schema.json",
+  "elmType": "button",
+  "txtContent": "Add Comment",
+  "customRowAction": {
+    "action": "executeFlow",
+    "actionParams": "{\"id\":\"<PowerAutomateFlowID>\", \"MainItemID\":\"[$ID]\", \"Comment\":\"[$Comment]\", \"LoggedInUser\":\"@me.email\"}"
+  },
+  "style": {
+    "background-color": "#0078d4",
+    "color": "white",
+    "border": "none",
+    "padding": "5px 10px",
+    "cursor": "pointer"
+  }
+}
