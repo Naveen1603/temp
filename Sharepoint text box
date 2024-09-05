@@ -1,0 +1,64 @@
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script type="text/ecmascript">
+
+$(document).ready(function () {
+    // Add a text box and button to the form
+    var commentBox = '<input type="text" id="commentTextBox" placeholder="Enter comment">';
+    var submitButton = '<button id="addCommentButton">Add Comment</button>';
+    $('div[role="main"]').append(commentBox + submitButton);
+
+    // Button click event handler
+    $('#addCommentButton').click(function () {
+        var comment = $('#commentTextBox').val();
+        
+        // Check if the comment is not empty
+        if (comment.trim() !== '') {
+            // Get the current logged-in user
+            var currentUser;
+            var clientContext = new SP.ClientContext.get_current();
+            var web = clientContext.get_web();
+            currentUser = web.get_currentUser();
+            clientContext.load(currentUser);
+            clientContext.executeQueryAsync(function() {
+                var userLoginName = currentUser.get_loginName();
+
+                // Create a new item in the "Child" list
+                createChildListItem(comment, userLoginName);
+            }, function (sender, args) {
+                alert('Error retrieving current user: ' + args.get_message());
+            });
+        } else {
+            alert('Please enter a comment before submitting.');
+        }
+    });
+
+    function createChildListItem(comment, userLoginName) {
+        var clientContext = new SP.ClientContext.get_current();
+        var childList = clientContext.get_web().get_lists().getByTitle('Child');
+        
+        // Get the current "Main" item details
+        var currentItemID = GetUrlKeyValue('ID');
+        var mainItemUrl = window.location.href;
+
+        var listItemCreationInfo = new SP.ListItemCreationInformation();
+        var newItem = childList.addItem(listItemCreationInfo);
+        
+        // Set field values for the new item in the Child list
+        newItem.set_item('Title', 'Comment for Main Item ' + currentItemID); // Set title
+        newItem.set_item('MainItemID', currentItemID); // Add main item ID field (Lookup or Number field)
+        newItem.set_item('MainItemUrl', mainItemUrl); // Add main item URL field (Hyperlink field)
+        newItem.set_item('MainComment', comment); // Add the comment from the text box (Text field)
+        newItem.set_item('PersonField', userLoginName); // Set the person field to the current user (Person field)
+
+        newItem.update();
+
+        clientContext.executeQueryAsync(function () {
+            alert('Comment added successfully to Child list.');
+            $('#commentTextBox').val(''); // Clear the text box
+        }, function (sender, args) {
+            alert('Error adding item to Child list: ' + args.get_message());
+        });
+    }
+});
+
+</script>
