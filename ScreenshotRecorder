@@ -1,0 +1,89 @@
+import time
+import os
+import hashlib
+import shutil
+from pptx import Presentation
+from pptx.util import Inches
+from PIL import ImageGrab
+
+# Prompt user for a name to create the folder and PowerPoint file
+folder_name = input("Enter a name for the folder and presentation: ")
+folder_path = os.path.join(os.getcwd(), folder_name)
+
+# Re-create the folder, deleting any existing one
+if os.path.exists(folder_path):
+    shutil.rmtree(folder_path)
+os.makedirs(folder_path)
+
+# Set the PowerPoint file path and initialize presentation
+ppt_path = os.path.join(folder_path, f"{folder_name}.pptx")
+ppt = Presentation()
+
+# Track last screenshot hash and number for naming images
+last_screenshot_hash = None
+image_counter = 1
+
+def calculate_image_hash(image):
+    """Calculate a unique hash for an image."""
+    img_bytes = image.tobytes()
+    return hashlib.md5(img_bytes).hexdigest()
+
+def add_screenshot_slide(prs, image, image_path):
+    """Add a screenshot as a new slide in the presentation."""
+    slide_layout = prs.slide_layouts[5]  # Blank slide
+    slide = prs.slides.add_slide(slide_layout)
+    left = Inches(1)
+    top = Inches(1)
+
+    # Adjust width to fit slide, keeping aspect ratio
+    img_width = Inches(6)
+    width, height = image.size
+    img_height = img_width * height / width
+
+    slide.shapes.add_picture(image_path, left, top, width=img_width)
+
+def get_clipboard_image():
+    """Check if the clipboard has an image and return it."""
+    try:
+        image = ImageGrab.grabclipboard()
+        if isinstance(image, ImageGrab.Image):
+            return image
+    except Exception as e:
+        print(f"Error accessing clipboard: {e}")
+    return None
+
+print("Monitoring clipboard for new screenshots... Press Ctrl+C to stop.")
+
+try:
+    while True:
+        # Check clipboard for a new image
+        screenshot = get_clipboard_image()
+
+        if screenshot:
+            # Calculate the hash of the new screenshot
+            current_hash = calculate_image_hash(screenshot)
+
+            # Only add the screenshot if it is new
+            if current_hash != last_screenshot_hash:
+                print(f"New screenshot detected! Saving as {image_counter}.png")
+
+                # Save the screenshot with a numbered filename
+                image_path = os.path.join(folder_path, f"{image_counter}.png")
+                screenshot.save(image_path)
+
+                # Add screenshot to the PowerPoint slide
+                add_screenshot_slide(ppt, screenshot, image_path)
+
+                # Save and update the PowerPoint file
+                ppt.save(ppt_path)
+                print(f"Screenshot added to {ppt_path}")
+
+                # Update last screenshot hash and increment counter
+                last_screenshot_hash = current_hash
+                image_counter += 1
+            else:
+                print("Duplicate screenshot detected, skipping...")
+
+        time.sleep(2)  # Check clipboard every 2 seconds
+except KeyboardInterrupt:
+    print("Stopping clipboard monitor.")
