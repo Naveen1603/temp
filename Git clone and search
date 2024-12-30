@@ -1,0 +1,109 @@
+import os
+import re
+import shutil
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from git import Repo
+from typing import List, Dict
+
+# Function to fetch all repositories for a given app ID (stub function, replace with actual API call)
+def fetch_repos_for_app_id(app_id: str) -> Dict[str, str]:
+    """
+    Simulate fetching repositories for an app ID.
+    Replace this function with an API call to fetch repositories for a given app ID.
+    """
+    # Example stub response
+    return {
+        f"Repo_{app_id}_1": f"https://github.com/Org/Repo_{app_id}_1.git",
+        f"Repo_{app_id}_2": f"https://github.com/Org/Repo_{app_id}_2.git"
+    }
+
+# Function to clone a repository
+def clone_repo(repo_url: str, clone_path: str):
+    try:
+        if not os.path.exists(clone_path):
+            Repo.clone_from(repo_url, clone_path)
+    except Exception as e:
+        print(f"Error cloning repo {repo_url}: {e}")
+
+# Function to search for 'YYYY' in files of a repository
+def search_YYYY_in_repo(repo_path: str):
+    matches = []
+    for root, _, files in os.walk(repo_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for line_no, line in enumerate(f, start=1):
+                        if re.search(r'\bYYYY\b', line):  # Case-sensitive match
+                            matches.append((file, line_no, line.strip()))
+            except Exception as e:
+                print(f"Error reading file {file_path}: {e}")
+    return matches
+
+# Function to process a single repository
+def process_repo(org_name: str, app_id: str, repo_name: str, repo_url: str, base_path: str):
+    repo_path = os.path.join(base_path, repo_name)
+    try:
+        # Clone repository
+        clone_repo(repo_url, repo_path)
+        
+        # Search for 'YYYY'
+        matches = search_YYYY_in_repo(repo_path)
+
+        # Delete the repository after processing
+        shutil.rmtree(repo_path, ignore_errors=True)
+
+        # Format results
+        return [
+            {
+                'Organization': org_name,
+                'App ID': app_id,
+                'Repository': repo_name,
+                'File Name': file_name,
+                'Line Number': line_no,
+                'Line Content': content
+            }
+            for file_name, line_no, content in matches
+        ]
+    except Exception as e:
+        print(f"Error processing repo {repo_name}: {e}")
+        return []
+
+# Main function to search across multiple app IDs
+def search_across_app_ids(org_name: str, app_ids: List[str], output_file: str):
+    results = []
+    base_path = "temp_repos"
+    os.makedirs(base_path, exist_ok=True)
+
+    tasks = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        for app_id in app_ids:
+            print(f"Fetching repositories for App ID: {app_id}")
+            repos = fetch_repos_for_app_id(app_id)
+            for repo_name, repo_url in repos.items():
+                tasks.append(
+                    executor.submit(process_repo, org_name, app_id, repo_name, repo_url, base_path)
+                )
+
+        # Gather results as tasks complete
+        for future in as_completed(tasks):
+            results.extend(future.result())
+
+    # Save results to Excel
+    df = pd.DataFrame(results)
+    df.to_excel(output_file, index=False)
+    print(f"Results saved to {output_file}")
+
+    # Clean up base directory
+    shutil.rmtree(base_path, ignore_errors=True)
+
+# Replace with actual organization name and app IDs
+organization_name = "MyOrganization"
+app_ids_list = ["AppID1", "AppID2", "AppID3"]  # Add more App IDs here
+
+# Output Excel file
+output_excel_file = "YYYY_Search_Results.xlsx"
+
+# Run the script
+search_across_app_ids(organization_name, app_ids_list, output_excel_file)
