@@ -1,0 +1,74 @@
+import gradio as gr
+import json
+from jira import JIRA
+
+# JIRA Configuration (Replace with actual values)
+JIRA_SERVER = "https://your-jira-instance.atlassian.net"
+JIRA_USER = "your-email@example.com"
+JIRA_API_TOKEN = "your-api-token"
+
+# Connect to Jira
+jira = JIRA(server=JIRA_SERVER, basic_auth=(JIRA_USER, JIRA_API_TOKEN))
+
+# Function to create Jira stories
+def create_jira_stories(board_name, json_payload):
+    try:
+        stories = json.loads(json_payload)
+        created_issues = []
+
+        for story in stories:
+            issue_dict = {
+                'project': {'key': board_name},
+                'summary': story["name"],
+                'description': f"{story['description']}\n\nAcceptance Criteria:\n{story['acceptance_criteria']}",
+                'issuetype': {'name': 'Story'},
+                'customfield_10002': story.get("story_points", 0)  # Adjust field key if needed
+            }
+            new_issue = jira.create_issue(fields=issue_dict)
+            created_issues.append(new_issue.key)
+
+        return f"Created Jira Stories: {', '.join(created_issues)}"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# Function to render and edit stories
+def display_stories(json_payload):
+    try:
+        stories = json.loads(json_payload)
+        components = []
+        
+        for index, story in enumerate(stories):
+            with gr.Accordion(f"{story['name']}", open=False) as accordion:
+                name = gr.Textbox(value=story["name"], label="Name")
+                description = gr.Textbox(value=story["description"], label="Description", lines=3)
+                acceptance_criteria = gr.Textbox(value=story["acceptance_criteria"], label="Acceptance Criteria", lines=3)
+                story_points = gr.Number(value=story["story_points"], label="Story Points")
+
+                # Store editable fields
+                components.append((accordion, name, description, acceptance_criteria, story_points))
+
+        return components
+    except json.JSONDecodeError:
+        return "Invalid JSON format!"
+
+# Gradio UI
+def gradio_ui():
+    with gr.Blocks() as app:
+        gr.Markdown("# Jira Story Creator")
+        board_name = gr.Textbox(label="Jira Board Name")
+        json_input = gr.Textbox(label="Paste JSON", lines=5)
+        output = gr.Column()
+
+        def update_display(json_payload):
+            return display_stories(json_payload)
+
+        render_button = gr.Button("Render Stories")
+        create_button = gr.Button("Create Jira Stories")
+
+        render_button.click(update_display, inputs=json_input, outputs=output)
+        create_button.click(create_jira_stories, inputs=[board_name, json_input], outputs=output)
+
+    return app
+
+# Launch Gradio UI
+gradio_ui().launch()
