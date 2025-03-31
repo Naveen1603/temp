@@ -1,17 +1,17 @@
 import os
-import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from fpdf import FPDF
 import time
-from concurrent.futures import ThreadPoolExecutor
 import re
+from concurrent.futures import ThreadPoolExecutor
+from playwright.sync_api import sync_playwright
 
 class WebDocExtractor:
     def __init__(self, start_url, output_dir="extracted_docs", max_pages=50, depth_limit=3):
         """
-        Initialize the web document extractor
+        Initialize the web document extractor using Playwright
         
         Args:
             start_url (str): The URL to start extraction from
@@ -26,13 +26,25 @@ class WebDocExtractor:
         self.depth_limit = depth_limit
         self.visited_urls = set()
         self.extracted_docs = []
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+        self.playwright = None
+        self.browser = None
         
         # Create output directory if it doesn't exist
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+    
+    def __enter__(self):
+        """Initialize Playwright when entering context"""
+        self.playwright = sync_playwright().start()
+        self.browser = self.playwright.chromium.launch(headless=True)
+        return self
+            
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close Playwright resources when exiting context"""
+        if self.browser:
+            self.browser.close()
+        if self.playwright:
+            self.playwright.stop()
             
     def is_valid_url(self, url):
         """Check if URL is valid and belongs to same domain"""
@@ -69,7 +81,7 @@ class WebDocExtractor:
                 else:
                     content.append(text)
         
-        return "\n".join(content)
+        return title, "\n".join(content)
     
     def clean_filename(self, text):
         """Create a valid filename from text"""
@@ -99,7 +111,7 @@ class WebDocExtractor:
         for paragraph in paragraphs:
             if paragraph.strip():
                 # Check if this looks like a heading (shorter text)
-                if len(paragraph) < 50 and paragraph.isupper() or paragraph.endswith(':'):
+                if len(paragraph) < 50 and (paragraph.isupper() or paragraph.endswith(':')):
                     pdf.set_font("Arial", "B", 14)
                     pdf.ln(5)
                     pdf.multi_cell(0, 10, paragraph)
@@ -115,7 +127,7 @@ class WebDocExtractor:
         return full_path
     
     def crawl_url(self, url, depth=0):
-        """Crawl a URL and extract document content"""
+        """Crawl a URL and extract document content using Playwright"""
         # Check if we've reached limits
         if url in self.visited_urls or len(self.extracted_docs) >= self.max_pages or depth > self.depth_limit:
             return
@@ -124,16 +136,25 @@ class WebDocExtractor:
         self.visited_urls.add(url)
         
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
-            if response.status_code != 200:
-                return
+            # Create a new page for this URL
+            page = self.browser.new_page()
             
-            # Parse HTML content
-            soup = BeautifulSoup(response.text, 'html.parser')
-            title = soup.title.string if soup.title else "Untitled"
+            # Set user agent and timeout
+            page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
+            })
+            
+            # Navigate to the URL with timeout
+            page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # Wait for content to load
+            page.wait_for_load_state("networkidle")
+            
+            # Get the full HTML content
+            html_content = page.content()
             
             # Extract text content
-            content = self.extract_text_from_html(response.text)
+            title, content = self.extract_text_from_html(html_content)
             
             # Generate filename
             filename = self.clean_filename(title) + ".pdf"
@@ -151,11 +172,11 @@ class WebDocExtractor:
             
             # Find links for recursive crawling
             if depth < self.depth_limit and len(self.extracted_docs) < self.max_pages:
-                links = soup.find_all('a', href=True)
+                # Get all links using Playwright
+                links = page.eval_on_selector_all('a[href]', 'elements => elements.map(el => el.href)')
                 new_urls = []
                 
-                for link in links:
-                    href = link['href']
+                for href in links:
                     # Convert relative URLs to absolute
                     absolute_url = urljoin(url, href)
                     
@@ -164,13 +185,23 @@ class WebDocExtractor:
                         len(self.extracted_docs) < self.max_pages):
                         new_urls.append((absolute_url, depth + 1))
                 
-                # Process new URLs with thread pool for faster execution
-                with ThreadPoolExecutor(max_workers=5) as executor:
-                    for new_url, new_depth in new_urls:
-                        executor.submit(self.crawl_url, new_url, new_depth)
+                # Close the page
+                page.close()
+                
+                # Process new URLs sequentially to avoid overwhelming the browser
+                for new_url, new_depth in new_urls[:10]:  # Limit batch size
+                    self.crawl_url(new_url, new_depth)
+            else:
+                # Close the page
+                page.close()
             
         except Exception as e:
             print(f"Error processing {url}: {str(e)}")
+            # Make sure to close the page if there's an error
+            try:
+                page.close()
+            except:
+                pass
     
     def extract_documents(self):
         """Main method to extract documents from URLs"""
@@ -198,14 +229,13 @@ if __name__ == "__main__":
     max_pages = 100  # Limit to prevent excessive crawling
     max_depth = 3    # How deep to follow links
     
-    # Initialize and run the extractor
-    extractor = WebDocExtractor(
+    # Use context manager to ensure proper resource cleanup
+    with WebDocExtractor(
         start_url=start_url,
         output_dir=output_directory,
         max_pages=max_pages,
         depth_limit=max_depth
-    )
-    
-    # Start extraction
-    results = extractor.extract_documents()
-    print(f"Extracted {len(results)} documents.")
+    ) as extractor:
+        # Start extraction
+        results = extractor.extract_documents()
+        print(f"Extracted {len(results)} documents.")
